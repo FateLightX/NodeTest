@@ -1,0 +1,94 @@
+name: NodeTest
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"
+    - cron: "0 3 */3 * *"   # 每 3 天清理一次 Actions 运行历史
+  workflow_dispatch:
+    inputs:
+      sub_url:
+        description: "订阅 URL（Clash YAML 或 Base64，默认取 Secret SUB_URL）"
+        required: false
+        type: string
+      gist_id:
+        description: "Gist ID（留空且提供 GIST_TOKEN 时自动新建，默认取 Secret GIST_ID）"
+        required: false
+        type: string
+      test_url:
+        description: "测速 URL"
+        required: false
+        type: string
+        default: "https://www.gstatic.com/generate_204"
+      timeout_ms:
+        description: "单节点超时毫秒（Hysteria2 最低 8000）"
+        required: false
+        type: number
+        default: 5000
+      concurrency:
+        description: "并发测试数"
+        required: false
+        type: number
+        default: 10
+      attempts:
+        description: "普通节点测试次数，1 或 3（3 需全部成功取中位数）"
+        required: false
+        type: number
+        default: 1
+      threshold_ms:
+        description: "保留阈值：只输出延迟不高于该值的节点"
+        required: false
+        type: number
+        default: 400
+      dry_run:
+        description: "仅生成报告不上传 Gist"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: node-latency-gist
+  cancel-in-progress: true
+
+jobs:
+  latency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - name: 测试节点延迟并推送 Gist
+        env:
+          SUB_URL: ${{ inputs.sub_url || secrets.SUB_URL }}
+          GIST_ID: ${{ inputs.gist_id || secrets.GIST_ID }}
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+          TEST_URL: ${{ inputs.test_url }}
+          TIMEOUT_MS: ${{ inputs.timeout_ms }}
+          CONCURRENCY: ${{ inputs.concurrency }}
+          ATTEMPTS: ${{ inputs.attempts }}
+          THRESHOLD_MS: ${{ inputs.threshold_ms }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          RUNNER_NAME: ${{ runner.name }}
+        run: bash scripts/node-latency-gist.sh
+
+  cleanup-history:
+    # 只在该 cron 触发的运行里清理，避免手动触发或每 6 小时测速时误删
+    if: github.event.schedule == '0 3 */3 * *'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: 删除旧的 Actions 运行历史（保留最近 10 次）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KEEP: 10
+        run: |
+          set -euo pipefail
+          # 列出全部运行（含 schedule 与 workflow_dispatch），按创建时间倒序
+          # 排除当前运行，保留最新 KEEP 条，删除更旧的
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs?per_page=100"             --jq '.workflow_runs[] | [.id, .created_at] | @tsv'             | awk -v run="$RUN_ID" '$1 != run'             | sort -k2 -r             | tail -n +$((KEEP + 1))             | cut -f1             | while read -r id; do
+                gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/runs/${id}" >/dev/null
+                echo "已删除 Actions run $id"
+              done
+          echo "清理完成（保留最近 $KEEP 次运行）"
