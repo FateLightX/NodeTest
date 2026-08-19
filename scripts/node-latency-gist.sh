@@ -42,8 +42,11 @@ trap cleanup EXIT
 
 echo "==> 下载订阅: $SUB_URL"
 curl -fsSL --retry 3 -o "$WORK_DIR/sub" "$SUB_URL"
-# Base64 编码的订阅（如 Sub-Store Base64 输出）先解码
-if tr -d '\n\r ' < "$WORK_DIR/sub" | head -c 4096 | LC_ALL=C grep -qE '^[A-Za-z0-9+/]+={0,2}$'; then
+# Base64 编码的订阅（如 Sub-Store Base64 输出）先解码。
+# 注意：不能直接在管道里 grep -q（pipefail 下 tr 被 SIGPIPE 会令条件为假），
+# 先截取前 4096 字节到变量再判断。
+probe="$(tr -d '\n\r ' < "$WORK_DIR/sub" | head -c 4096 2>/dev/null || true)"
+if LC_ALL=C grep -qE '^[A-Za-z0-9+/]+={0,2}$' <<<"$probe"; then
   echo "==> 检测到 Base64 订阅，解码"
   tr -d '\n\r ' < "$WORK_DIR/sub" | base64 -d > "$WORK_DIR/sub.decoded" && mv "$WORK_DIR/sub.decoded" "$WORK_DIR/sub"
 fi
@@ -76,39 +79,54 @@ else
   bin="$WORK_DIR/mihomo"
 fi
 
-cat > "$WORK_DIR/config.yaml" <<EOF
-mixed-port: 7890
-allow-lan: false
-mode: rule
-log-level: ${LOG_LEVEL}
-ipv6: false
-unified-delay: true
-tcp-concurrent: true
-external-controller: 127.0.0.1:${API_PORT}
-secret: "${API_SECRET}"
-dns:
-  enable: true
-  listen: 127.0.0.1:1053
-  enhanced-mode: redir-host
-  nameserver:
-    - https://8.8.8.8/dns-query
-    - https://1.1.1.1/dns-query
-  proxy-server-nameserver:
-    - https://8.8.8.8/dns-query
-    - https://1.1.1.1/dns-query
-  fake-ip-filter:
-    - "*.lan"
-    - "*.local"
-proxies: []
-proxy-providers:
-  provider:
-    type: file
-    path: ./sub
-    health-check:
-      enable: false
-rules:
-  - MATCH,DIRECT
-EOF
+# 解析订阅，把节点内联写入 mihomo 配置（与主程序 buildMihomoConfig 同思路，
+# 避免 file provider 在新版 mihomo 上不加载的问题）
+export SUB_PATH="$WORK_DIR/sub" CONFIG_PATH="$WORK_DIR/config.yaml" API_PORT API_SECRET LOG_LEVEL
+python3 - <<'PY'
+import os
+import sys
+
+try:
+    import yaml
+except ImportError:
+    sys.exit("缺少 PyYAML，请先运行: pip3 install --user pyyaml")
+
+sub_path = os.environ["SUB_PATH"]
+config_path = os.environ["CONFIG_PATH"]
+api_port = os.environ["API_PORT"]
+api_secret = os.environ["API_SECRET"]
+log_level = os.environ["LOG_LEVEL"]
+
+with open(sub_path) as f:
+    sub = yaml.safe_load(f)
+if not isinstance(sub, dict) or not isinstance(sub.get("proxies"), list) or not sub["proxies"]:
+    sys.exit("订阅不是 Clash/Mihomo YAML 格式（缺少 proxies 列表），请检查 SUB_URL")
+
+config = {
+    "mixed-port": 7890,
+    "allow-lan": False,
+    "mode": "rule",
+    "log-level": log_level,
+    "ipv6": False,
+    "unified-delay": True,
+    "tcp-concurrent": True,
+    "external-controller": f"127.0.0.1:{api_port}",
+    "secret": api_secret,
+    "dns": {
+        "enable": True,
+        "listen": "127.0.0.1:1053",
+        "enhanced-mode": "redir-host",
+        "nameserver": ["https://8.8.8.8/dns-query", "https://1.1.1.1/dns-query"],
+        "proxy-server-nameserver": ["https://8.8.8.8/dns-query", "https://1.1.1.1/dns-query"],
+        "fake-ip-filter": ["*.lan", "*.local"],
+    },
+    "proxies": sub["proxies"],
+    "rules": ["MATCH,DIRECT"],
+}
+with open(config_path, "w") as f:
+    yaml.safe_dump(config, f, sort_keys=False, allow_unicode=True, default_flow_style=False)
+print(f"==> 订阅节点 {len(sub['proxies'])} 个已写入 mihomo 配置")
+PY
 
 echo "==> 启动 mihomo"
 (cd "$WORK_DIR" && MIHOMO_LOG_LEVEL="$LOG_LEVEL" "$bin" -d "$WORK_DIR" -f "$WORK_DIR/config.yaml" > mihomo.log 2>&1) &
@@ -130,7 +148,7 @@ fi
 
 # 只测真实节点，排除分组/内置类型
 jq -r '.proxies | to_entries[] |
-  select((.value.type // "") as $t | ["Selector","URLTest","Fallback","LoadBalance","Relay","Direct","Reject","RejectDrop","Compatible","Pass"] | index($t) | not) |
+  select((.value.type // "") as $t | ["Selector","URLTest","Fallback","LoadBalance","Relay","Direct","Reject","RejectDrop","Compatible","Pass","PassRule"] | index($t) | not) |
   [(.key | @base64), .value.type] | @tsv' "$WORK_DIR/proxies.json" | grep -v '^$' > "$WORK_DIR/nodes.tsv"
 
 total_nodes="$(wc -l < "$WORK_DIR/nodes.tsv" | tr -d ' ')"
