@@ -165,6 +165,7 @@ set -euo pipefail
 name_b64="$1"
 type="$2"
 name="$(printf '%s' "$name_b64" | base64 -d)"
+fname="${name_b64//[\/+]/_}"   # base64 可含 / 和 +，替换成 _ 避免被当作路径分隔符
 enc="$(jq -rn --arg v "$name" '$v|@uri')"
 auth="Authorization: Bearer ${API_SECRET}"
 base="http://127.0.0.1:${API_PORT}/proxies/${enc}/delay"
@@ -217,7 +218,7 @@ if [[ "${#success[@]}" -ge "$min_ok" ]]; then
 else
   jq -nc --arg name "$name" --arg type "$type" --arg error "${err:-request failed}" \
     '{name:$name, type:$type, delay:null, error:$error}'
-fi > "$RESULT_DIR/${RANDOM}-${$}-${name_b64:0:10}.json"
+fi > "$RESULT_DIR/${RANDOM}-${$}-${fname:0:10}.json"
 INNER
 chmod +x "$WORK_DIR/test_node.sh"
 
