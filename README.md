@@ -23,7 +23,7 @@ GitHub Action 定时用官方 Mihomo 内核实测订阅节点延迟，把延迟�
 | --- | --- | --- |
 | `SUB_URL` | 是 | 订阅 URL（Clash YAML 或 Base64） |
 | `GIST_TOKEN` | 是 | 带 `gist` scope 的经典 Personal Access Token |
-| `GIST_ID` | 建议 | 固定更新已有 Gist（如 Sub-Store 仓库）；留空则每次运行新建 Gist |
+| `GIST_ID` | 否 | 已有 Gist ID；留空则首次运行时自动创建 |
 
 配置完成后：
 
@@ -41,11 +41,11 @@ GitHub Action 定时用官方 Mihomo 内核实测订阅节点延迟，把延迟�
 
 ## Gist 内容
 
-Gist 只更新一个文件：
+Gist 只包含一个文件：
 
-- `Mihomo`：Sub-Store 风格订阅（`proxies:` 下每个节点一行 JSON），列出测速合格（延迟 ≤ 阈值）的节点，保留原始字段（Hysteria2 的 `ports`/`mport`/`hop-interval`/`udp-mtu`/`sni` 等不重写）和原始顺序。
+- `Nodes`：Sub-Store 风格订阅（`proxies:` 下每个节点一行 JSON），列出测速合格（延迟 ≤ 阈值）的节点，保留原始字段（Hysteria2 的 `ports`/`mport`/`hop-interval`/`udp-mtu`/`sni` 等不重写）和原始顺序。
 
-配合固定 `GIST_ID`（例如 Sub-Store 仓库 Gist）时，每次运行只更新其中的 `Mihomo` 文件，其他文件（如 `SingBox`）不受影响。raw 地址形如 `https://gist.githubusercontent.com/{owner}/{gist_id}/raw/Mihomo`，可直接作为 Clash/Mihomo 订阅链接使用。
+拿到 Gist 的 raw 地址后，可直接作为 Clash/Mihomo 订阅链接使用。
 
 ## 手动运行脚本
 

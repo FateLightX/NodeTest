@@ -229,7 +229,7 @@ xargs -P "$CONCURRENCY" -n 2 "$WORK_DIR/test_node.sh" < "$WORK_DIR/nodes.tsv"
 jq -s 'sort_by((.delay // 1000000000000), .name)' "$WORK_DIR"/results/*.json > "$WORK_DIR/node-latency.json"
 
 # 生成 Mihomo 格式输出：只保留 delay <= THRESHOLD_MS 的节点，保留原始字段与顺序
-export SUB_PATH="$WORK_DIR/sub" RESULT_PATH="$WORK_DIR/node-latency.json" OUT_PATH="$WORK_DIR/Mihomo" THRESHOLD_MS
+export SUB_PATH="$WORK_DIR/sub" RESULT_PATH="$WORK_DIR/node-latency.json" OUT_PATH="$WORK_DIR/Nodes" THRESHOLD_MS
 python3 - <<'PY'
 import json
 import os
@@ -274,15 +274,15 @@ PY
 
 if [[ "$DRY_RUN" == "1" ]]; then
   mkdir -p "$PWD/.gist-preview"
-  cp "$WORK_DIR/Mihomo" "$PWD/.gist-preview/Mihomo"
-  echo "DRY_RUN：Mihomo 已生成到 $PWD/.gist-preview/Mihomo（未上传）"
+  cp "$WORK_DIR/Nodes" "$PWD/.gist-preview/Nodes"
+  echo "DRY_RUN：Nodes 已生成到 $PWD/.gist-preview/Nodes（未上传）"
   exit 0
 fi
 
 payload="$(jq -nc \
-  --arg desc "Sub-Store Artifacts Repository" \
-  --rawfile nodes "$WORK_DIR/Mihomo" \
-  '{description:$desc, public:false, files:{"Mihomo":{content:$nodes}}}')"
+  --arg desc "Nodes 节点延迟测试 $(date -u '+%Y-%m-%d %H:%M UTC')" \
+  --rawfile nodes "$WORK_DIR/Nodes" \
+  '{description:$desc, public:false, files:{"Nodes":{content:$nodes}}}')"
 
 if [[ -z "$GIST_ID" ]]; then
   echo "==> 创建新 Gist"
