@@ -229,7 +229,7 @@ xargs -P "$CONCURRENCY" -n 2 "$WORK_DIR/test_node.sh" < "$WORK_DIR/nodes.tsv"
 jq -s 'sort_by((.delay // 1000000000000), .name)' "$WORK_DIR"/results/*.json > "$WORK_DIR/node-latency.json"
 
 # 生成 Mihomo 格式输出：只保留 delay <= THRESHOLD_MS 的节点，保留原始字段与顺序
-export SUB_PATH="$WORK_DIR/sub" RESULT_PATH="$WORK_DIR/node-latency.json" OUT_PATH="$WORK_DIR/Nodes" THRESHOLD_MS
+export SUB_PATH="$WORK_DIR/sub" RESULT_PATH="$WORK_DIR/node-latency.json" OUT_PATH="$WORK_DIR/Mihomo" THRESHOLD_MS
 python3 - <<'PY'
 import json
 import os
@@ -258,8 +258,12 @@ for p in proxies:
     if r and r.get("delay") is not None and r["delay"] <= threshold:
         kept.append(p)
 
+# 输出 Sub-Store 风格：proxies: 下每个节点一行 JSON（保留原始字段与顺序）
+lines = ["proxies:"]
+for p in kept:
+    lines.append("  - " + json.dumps(p, ensure_ascii=False, separators=(",", ":")))
 with open(out_path, "w") as f:
-    yaml.safe_dump({"proxies": kept}, f, sort_keys=False, allow_unicode=True, default_flow_style=False)
+    f.write("\n".join(lines) + "\n")
 
 total = len(proxies)
 print(f"==> 保留 {len(kept)} / {total} 个节点（阈值 {threshold}ms）")
@@ -270,15 +274,15 @@ PY
 
 if [[ "$DRY_RUN" == "1" ]]; then
   mkdir -p "$PWD/.gist-preview"
-  cp "$WORK_DIR/Nodes" "$PWD/.gist-preview/Nodes"
-  echo "DRY_RUN：Nodes 已生成到 $PWD/.gist-preview/Nodes（未上传）"
+  cp "$WORK_DIR/Mihomo" "$PWD/.gist-preview/Mihomo"
+  echo "DRY_RUN：Mihomo 已生成到 $PWD/.gist-preview/Mihomo（未上传）"
   exit 0
 fi
 
 payload="$(jq -nc \
-  --arg desc "Nodes 节点延迟测试 $(date -u '+%Y-%m-%d %H:%M UTC')" \
-  --rawfile nodes "$WORK_DIR/Nodes" \
-  '{description:$desc, public:false, files:{"Nodes":{content:$nodes}}}')"
+  --arg desc "Sub-Store Artifacts Repository" \
+  --rawfile nodes "$WORK_DIR/Mihomo" \
+  '{description:$desc, public:false, files:{"Mihomo":{content:$nodes}}}')"
 
 if [[ -z "$GIST_ID" ]]; then
   echo "==> 创建新 Gist"
