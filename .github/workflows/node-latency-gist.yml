@@ -10,10 +10,6 @@ on:
         description: "订阅 URL（Clash YAML 或 Base64，默认取 Secret SUB_URL）"
         required: false
         type: string
-      gist_id:
-        description: "Gist ID（留空且提供 GIST_TOKEN 时自动新建，默认取 Secret GIST_ID）"
-        required: false
-        type: string
       test_url:
         description: "测速 URL"
         required: false
@@ -61,7 +57,6 @@ jobs:
       - name: 测试节点延迟并推送 Gist
         env:
           SUB_URL: ${{ inputs.sub_url || secrets.SUB_URL }}
-          GIST_ID: ${{ inputs.gist_id || secrets.GIST_ID }}
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
           TEST_URL: ${{ inputs.test_url }}
           TIMEOUT_MS: ${{ inputs.timeout_ms }}
