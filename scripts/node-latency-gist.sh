@@ -285,14 +285,29 @@ payload="$(jq -nc \
   '{description:$desc, public:false, files:{"Nodes":{content:$nodes}}}')"
 
 if [[ -z "$GIST_ID" ]]; then
-  echo "==> 创建新 Gist"
-  resp="$(curl -fsS -X POST \
+  # Sub-Store 方式：先按文件名搜索已有 Gist，找到就更新
+  echo "==> 搜索包含文件 'Nodes' 的已有 Gist"
+  found_id="$(curl -fsS \
     -H "Authorization: Bearer ${GIST_TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    -H "X-GitHub-Api-Version: 2022-11-28" \
-    -d "$payload" https://api.github.com/gists)"
-  echo "已创建 Gist: $(jq -r '.html_url' <<<"$resp")"
-  echo "建议把 GIST_ID=$(jq -r '.id' <<<"$resp") 保存为 Secret，避免每次新建。"
+    "https://api.github.com/gists?per_page=100" | jq -r '
+      [.[] | select(.files["Nodes"] != null) | .id] | .[0] // empty')"
+  if [[ -n "$found_id" ]]; then
+    echo "==> 找到已有 Gist: $found_id，执行 PATCH 更新"
+    resp="$(curl -fsS -X PATCH \
+      -H "Authorization: Bearer ${GIST_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      -d "$payload" "https://api.github.com/gists/${found_id}")"
+    echo "已更新 Gist: $(jq -r '.html_url' <<<"$resp")"
+  else
+    echo "==> 未找到，创建新 Gist"
+    resp="$(curl -fsS -X POST \
+      -H "Authorization: Bearer ${GIST_TOKEN}" \
+      -H "Accept: application/vnd.github+json" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      -d "$payload" https://api.github.com/gists)"
+    echo "已创建 Gist: $(jq -r '.html_url' <<<"$resp")"
+  fi
 else
   echo "==> 更新 Gist: $GIST_ID"
   resp="$(curl -fsS -X PATCH \
