@@ -89,7 +89,23 @@ import sys
 try:
     import yaml
 except ImportError:
-    sys.exit("缺少 PyYAML，请先运行: pip3 install --user pyyaml")
+    sys.exit("缺少 PyYAML，请先运行: pip3 import pyyaml")
+
+class QuotedStr(str):
+    pass
+
+def _quoted_str_representer(dumper, data):
+    return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='"')
+
+yaml.add_representer(QuotedStr, _quoted_str_representer)
+
+def _fix_short_ids(proxies):
+    for p in proxies:
+        ro = p.get("reality-opts")
+        if isinstance(ro, dict) and "short-id" in ro:
+            sid = ro["short-id"]
+            if sid is not None and not isinstance(sid, QuotedStr):
+                ro["short-id"] = QuotedStr(str(sid))
 
 sub_path = os.environ["SUB_PATH"]
 config_path = os.environ["CONFIG_PATH"]
@@ -143,6 +159,7 @@ config = {
     "proxies": sub["proxies"],
     "rules": ["MATCH,DIRECT"],
 }
+_fix_short_ids(sub["proxies"])
 with open(config_path, "w") as f:
     yaml.safe_dump(config, f, sort_keys=False, allow_unicode=True, default_flow_style=False)
 print(f"==> 订阅节点 {len(sub['proxies'])} 个已写入 mihomo 配置")
