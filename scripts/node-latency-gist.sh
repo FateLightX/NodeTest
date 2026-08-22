@@ -102,6 +102,26 @@ with open(sub_path) as f:
 if not isinstance(sub, dict) or not isinstance(sub.get("proxies"), list) or not sub["proxies"]:
     sys.exit("订阅不是 Clash/Mihomo YAML 格式（缺少 proxies 列表），请检查 SUB_URL")
 
+# 过滤掉 mihomo 无法解析的坏节点，避免单个节点导致整个配置加载失败
+import re
+def _valid_proxy(p):
+    if not isinstance(p, dict):
+        return False
+    # REALITY short-id 必须是空串或 0-16 位十六进制
+    reality = p.get("reality-opts") or {}
+    sid = reality.get("short-id", "")
+    if not isinstance(sid, str) or (sid != "" and len(sid) > 16):
+        return False
+    if sid and not re.fullmatch(r"[0-9a-fA-F]*", sid):
+        return False
+    return True
+
+_total = len(sub["proxies"])
+sub["proxies"] = [p for p in sub["proxies"] if _valid_proxy(p)]
+_skipped = _total - len(sub["proxies"])
+if _skipped:
+    print(f"==> 跳过 {_skipped} 个无效节点（REALITY short ID 格式错误）")
+
 config = {
     "mixed-port": 7890,
     "allow-lan": False,
