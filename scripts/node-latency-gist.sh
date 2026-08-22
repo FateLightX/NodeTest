@@ -97,6 +97,7 @@ class QuotedStr(str):
 def _quoted_str_representer(dumper, data):
     return dumper.represent_scalar('tag:yaml.org,2002:str', data, style='"')
 
+yaml.SafeDumper.add_representer(QuotedStr, _quoted_str_representer)
 yaml.add_representer(QuotedStr, _quoted_str_representer)
 
 def _fix_short_ids(proxies):
