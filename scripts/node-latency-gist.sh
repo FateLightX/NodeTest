@@ -139,6 +139,19 @@ _skipped = _total - len(sub["proxies"])
 if _skipped:
     print(f"==> 跳过 {_skipped} 个无效节点（REALITY short ID 格式错误）")
 
+# 去重：mihomo 不允许重名节点，给重复名称追加序号
+_seen = {}
+for p in sub["proxies"]:
+    name = str(p.get("name", ""))
+    if name in _seen:
+        _seen[name] += 1
+        p["name"] = f"{name} #{_seen[name]}"
+    else:
+        _seen[name] = 0
+_dup_count = sum(v for v in _seen.values())
+if _dup_count:
+    print(f"==> 重命名 {_dup_count} 个重名节点（加 #N 后缀）")
+
 config = {
     "mixed-port": 7890,
     "allow-lan": False,
@@ -289,10 +302,24 @@ proxies = sub.get("proxies") or []
 with open(result_path) as f:
     results = {r["name"]: r for r in json.load(f)}
 
+# 与配置生成端相同的去重逻辑，建立 原始name -> mihomo name 的映射
+_seen = {}
+_name_map = {}
+for p in proxies:
+    orig = str(p.get("name", ""))
+    if orig in _seen:
+        _seen[orig] += 1
+        mapped = f"{orig} #{_seen[orig]}"
+    else:
+        _seen[orig] = 0
+        mapped = orig
+    _name_map[id(p)] = (orig, mapped)
+
 kept = []
 for p in proxies:
-    name = p.get("name")
-    r = results.get(name)
+    orig, mapped = _name_map.get(id(p), (str(p.get("name", "")), str(p.get("name", ""))))
+    # 优先用 mihomo 里的名字查结果，找不到再用原始名（兼容无重名场景）
+    r = results.get(mapped) or results.get(orig)
     if r and r.get("delay") is not None and r["delay"] <= threshold:
         kept.append(p)
 
