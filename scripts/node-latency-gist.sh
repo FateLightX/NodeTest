@@ -45,7 +45,7 @@ curl -fsSL --retry 3 -o "$WORK_DIR/sub" "$SUB_URL"
 # Base64 编码的订阅（如 Sub-Store Base64 输出）先解码。
 # 注意：不能直接在管道里 grep -q（pipefail 下 tr 被 SIGPIPE 会令条件为假），
 # 先截取前 4096 字节到变量再判断。
-probe="$(tr -d '\n\r ' < "$WORK_DIR/sub" | head -c 4096 2>/dev/null || true)"
+probe="$(tr -d '\n\r ' < "$WORK_DIR/sub" 2>/dev/null | head -c 4096 || true)"
 if LC_ALL=C grep -qE '^[A-Za-z0-9+/]+={0,2}$' <<<"$probe"; then
   echo "==> 检测到 Base64 订阅，解码"
   tr -d '\n\r ' < "$WORK_DIR/sub" | base64 -d > "$WORK_DIR/sub.decoded" && mv "$WORK_DIR/sub.decoded" "$WORK_DIR/sub"
@@ -344,10 +344,10 @@ if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
 fi
 
-payload="$(jq -nc \
+jq -nc \
   --arg desc "Nodes 节点延迟测试 $(date -u '+%Y-%m-%d %H:%M UTC')" \
   --rawfile nodes "$WORK_DIR/Nodes" \
-  '{description:$desc, public:false, files:{"Nodes":{content:$nodes}}}')"
+  '{description:$desc, public:false, files:{"Nodes":{content:$nodes}}}' > "$WORK_DIR/payload.json"
 
 if [[ -z "$GIST_ID" ]]; then
   # Sub-Store 方式：先按文件名搜索已有 Gist，找到就更新
@@ -362,7 +362,7 @@ if [[ -z "$GIST_ID" ]]; then
       -H "Authorization: Bearer ${GIST_TOKEN}" \
       -H "Accept: application/vnd.github+json" \
       -H "X-GitHub-Api-Version: 2022-11-28" \
-      -d "$payload" "https://api.github.com/gists/${found_id}")"
+      --data-binary @"$WORK_DIR/payload.json" "https://api.github.com/gists/${found_id}")"
     echo "已更新 Gist: $(jq -r '.html_url' <<<"$resp")"
   else
     echo "==> 未找到，创建新 Gist"
@@ -370,7 +370,7 @@ if [[ -z "$GIST_ID" ]]; then
       -H "Authorization: Bearer ${GIST_TOKEN}" \
       -H "Accept: application/vnd.github+json" \
       -H "X-GitHub-Api-Version: 2022-11-28" \
-      -d "$payload" https://api.github.com/gists)"
+      --data-binary @"$WORK_DIR/payload.json" https://api.github.com/gists)"
     echo "已创建 Gist: $(jq -r '.html_url' <<<"$resp")"
   fi
 else
@@ -379,6 +379,6 @@ else
     -H "Authorization: Bearer ${GIST_TOKEN}" \
     -H "Accept: application/vnd.github+json" \
     -H "X-GitHub-Api-Version: 2022-11-28" \
-    -d "$payload" "https://api.github.com/gists/${GIST_ID}")"
+    --data-binary @"$WORK_DIR/payload.json" "https://api.github.com/gists/${GIST_ID}")"
   echo "已更新 Gist: $(jq -r '.html_url' <<<"$resp")"
 fi
