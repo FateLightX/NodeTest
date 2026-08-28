@@ -2,7 +2,7 @@ name: NodeTest
 
 on:
   schedule:
-    - cron: "0 */6 * * *"
+    - cron: "0 1 * * *"
     - cron: "0 3 */3 * *"   # 每 3 天清理一次 Actions 运行历史
   workflow_dispatch:
     inputs:
