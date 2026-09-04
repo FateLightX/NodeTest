@@ -27,8 +27,8 @@ GitHub Action 定时用官方 Mihomo 内核实测订阅节点延迟，把延迟�
 
 配置完成后：
 
-1. 手动触发一次验证：Actions → **NodeTest** → **Run workflow**（可临时覆盖订阅、超时、并发、测试次数；勾选 `dry_run` 只生成报告不上传）。
-2. 确认报告正常后，工作流会按默认计划每 6 小时自动运行（`0 */6 * * *`）。
+1. 手动触发一次验证：Actions → **NodeTest** → **Run workflow**（可调整测速 URL、超时、并发、测试次数；订阅和 Gist ID 始终从 Secrets 读取；勾选 `dry_run` 只生成报告不上传）。
+2. 确认报告正常后，工作流会按默认计划每天 01:00 UTC 自动运行（`0 1 * * *`）。
 
 ## Actions 历史清理
 
@@ -75,5 +75,5 @@ SUB_URL="https://..." GIST_TOKEN="ghp_..." bash scripts/node-latency-gist.sh
 
 - 测到的延迟反映 GitHub Actions 运行器所在网络的出口实测值，不代表本机或目标网络表现，适合做趋势监控而非精准排序。
 - 全部节点都失败或超阈值时，跳过 Gist 更新，避免把上一次的好订阅覆盖成空列表。
-- Gist 为私有（`public: false`），只有持有链接或已登录的账号可见。
+- Gist 为私有（`public: false`），只有持有链接或已登录的账号可见；Action 日志不输出订阅地址、Gist ID、Gist URL 或 mihomo 原始日志。
 - `GIST_TOKEN` 只应授予 `gist` scope，不要使用有完整仓库权限的令牌。

@@ -16,15 +16,11 @@ if [ -n "$GIST_ID" ]; then
   jq -n --arg f "$GIST_NAME" --rawfile c "$INPUT" \
     '{files:{($f):{content:$c}}}' |
   gh api -X PATCH "gists/$GIST_ID" --input - -q .id > /dev/null
-  echo "已更新 Gist: $GIST_ID"
+  echo "已更新 Gist 文件 '$GIST_NAME'"
 else
   # 2b. 不存在 -> 自动创建 secret Gist（Sub-Store Artifacts 方式）
   GIST_ID="$(jq -n --arg f "$GIST_NAME" --rawfile c "$INPUT" \
     '{description:"Nodes Artifacts Repository",public:false,files:{($f):{content:$c}}}' |
   gh api gists --input - -q .id)"
-  echo "已创建 Gist: $GIST_ID"
+  echo "已创建 Gist 文件 '$GIST_NAME'"
 fi
-
-# 3. 输出固定 raw 地址（用户名动态取，不写死）
-OWNER="$(gh api "gists/$GIST_ID" -q .owner.login)"
-echo "固定地址: https://gist.githubusercontent.com/$OWNER/$GIST_ID/raw/$GIST_NAME"

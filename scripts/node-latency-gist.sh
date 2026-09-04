@@ -24,7 +24,7 @@ if [[ "$ATTEMPTS" != "1" && "$ATTEMPTS" != "3" ]]; then
   exit 2
 fi
 if [[ -z "$SUB_URL" ]]; then
-  echo "缺少 SUB_URL（工作流输入或 Secret SUB_URL）" >&2
+  echo "缺少 SUB_URL（请配置 Secret SUB_URL）" >&2
   exit 2
 fi
 if [[ "$DRY_RUN" != "1" && -z "$GIST_TOKEN" ]]; then
@@ -40,7 +40,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "==> 下载订阅: $SUB_URL"
+echo "==> 下载订阅（地址已隐藏）"
 curl -fsSL --retry 3 -o "$WORK_DIR/sub" "$SUB_URL"
 # Base64 编码的订阅（如 Sub-Store Base64 输出）先解码。
 # 注意：不能直接在管道里 grep -q（pipefail 下 tr 被 SIGPIPE 会令条件为假），
@@ -193,7 +193,7 @@ for _ in $(seq 1 60); do
 done
 if [[ "$ready" != "1" ]]; then
   echo "mihomo API 未在 60s 内就绪" >&2
-  tail -n 50 "$WORK_DIR/mihomo.log" >&2 || true
+  echo "mihomo 启动日志已隐藏" >&2
   exit 1
 fi
 
@@ -205,7 +205,7 @@ jq -r '.proxies | to_entries[] |
 total_nodes="$(wc -l < "$WORK_DIR/nodes.tsv" | tr -d ' ')"
 if [[ "$total_nodes" -eq 0 ]]; then
   echo "订阅中没有可测节点" >&2
-  tail -n 30 "$WORK_DIR/mihomo.log" >&2 || true
+  echo "mihomo 启动日志已隐藏" >&2
   exit 1
 fi
 echo "==> 共 $total_nodes 个节点，并发 ${CONCURRENCY}，超时 ${TIMEOUT_MS}ms，attempts=$ATTEMPTS"
@@ -357,13 +357,14 @@ if [[ -z "$GIST_ID" ]]; then
     "https://api.github.com/gists?per_page=100" | jq -r '
       [.[] | select(.files["Nodes"] != null) | .id] | .[0] // empty')"
   if [[ -n "$found_id" ]]; then
-    echo "==> 找到已有 Gist: $found_id，执行 PATCH 更新"
+    echo "==> 找到已有 Nodes Gist，执行 PATCH 更新"
     resp="$(curl -fsS -X PATCH \
       -H "Authorization: Bearer ${GIST_TOKEN}" \
       -H "Accept: application/vnd.github+json" \
       -H "X-GitHub-Api-Version: 2022-11-28" \
       --data-binary @"$WORK_DIR/payload.json" "https://api.github.com/gists/${found_id}")"
-    echo "已更新 Gist: $(jq -r '.html_url' <<<"$resp")"
+    jq -e '.id' >/dev/null <<<"$resp"
+    echo "已更新 Nodes Gist"
   else
     echo "==> 未找到，创建新 Gist"
     resp="$(curl -fsS -X POST \
@@ -371,14 +372,16 @@ if [[ -z "$GIST_ID" ]]; then
       -H "Accept: application/vnd.github+json" \
       -H "X-GitHub-Api-Version: 2022-11-28" \
       --data-binary @"$WORK_DIR/payload.json" https://api.github.com/gists)"
-    echo "已创建 Gist: $(jq -r '.html_url' <<<"$resp")"
+    jq -e '.id' >/dev/null <<<"$resp"
+    echo "已创建 Nodes Gist"
   fi
 else
-  echo "==> 更新 Gist: $GIST_ID"
+  echo "==> 更新 Nodes Gist"
   resp="$(curl -fsS -X PATCH \
     -H "Authorization: Bearer ${GIST_TOKEN}" \
     -H "Accept: application/vnd.github+json" \
     -H "X-GitHub-Api-Version: 2022-11-28" \
     --data-binary @"$WORK_DIR/payload.json" "https://api.github.com/gists/${GIST_ID}")"
-  echo "已更新 Gist: $(jq -r '.html_url' <<<"$resp")"
+  jq -e '.id' >/dev/null <<<"$resp"
+  echo "已更新 Nodes Gist"
 fi

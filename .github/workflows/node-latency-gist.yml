@@ -6,14 +6,6 @@ on:
     - cron: "0 3 */3 * *"   # 每 3 天清理一次 Actions 运行历史
   workflow_dispatch:
     inputs:
-      sub_url:
-        description: "订阅 URL（Clash YAML 或 Base64，默认取 Secret SUB_URL）"
-        required: false
-        type: string
-      gist_id:
-        description: "Gist ID（留空且提供 GIST_TOKEN 时自动新建，默认取 Secret GIST_ID）"
-        required: false
-        type: string
       test_url:
         description: "测速 URL"
         required: false
@@ -60,8 +52,8 @@ jobs:
       - uses: actions/checkout@v5
       - name: 测试节点延迟并推送 Gist
         env:
-          SUB_URL: ${{ inputs.sub_url || secrets.SUB_URL }}
-          GIST_ID: ${{ inputs.gist_id || secrets.GIST_ID }}
+          SUB_URL: ${{ secrets.SUB_URL }}
+          GIST_ID: ${{ secrets.GIST_ID }}
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
           TEST_URL: ${{ inputs.test_url }}
           TIMEOUT_MS: ${{ inputs.timeout_ms }}
@@ -82,6 +74,7 @@ jobs:
       - name: 删除旧的 Actions 运行历史（保留最近 10 次）
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.run_id }}
           KEEP: 10
         run: |
           set -euo pipefail
