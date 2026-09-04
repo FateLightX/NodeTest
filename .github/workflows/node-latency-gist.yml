@@ -1,4 +1,5 @@
 name: NodeTest
+run-name: NodeTest
 
 on:
   schedule:
